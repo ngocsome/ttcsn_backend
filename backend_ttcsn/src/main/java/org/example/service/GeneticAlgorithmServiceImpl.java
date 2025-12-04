@@ -1,240 +1,289 @@
 package org.example.service;
 
-import org.example.model.Edge;
-import org.example.model.GeneticAlgorithmConfig;
-import org.example.model.Graph;
-import org.example.model.Individual;
-import org.example.model.MSTResult;
+import org.example.model.*;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 public class GeneticAlgorithmServiceImpl implements GeneticAlgorithmService {
 
-    private final Random random = new Random();
+    private static final double BIG_PENALTY = 1e12;
 
     @Override
     public MSTResult solveMST(Graph graph, GeneticAlgorithmConfig config) {
-        int popSize = config.getPopulationSize();
-        int generations = config.getGenerations();
+        Objects.requireNonNull(graph, "graph must not be null");
+        Objects.requireNonNull(config, "config must not be null");
 
-        int numEdges = graph.getEdges().size();
+        int n = graph.getVertexCount();
+        List<Edge> edges = graph.getEdges();
+        int m = edges != null ? edges.size() : 0;
 
-        List<Individual> population = initializePopulation(popSize, numEdges);
-
-        double[] bestFitnessHistory = new double[generations];
-        Individual bestOverall = null;
-
-        for (int gen = 0; gen < generations; gen++) {
-            evaluatePopulation(population, graph);
-            population.sort((a, b) -> Double.compare(a.getFitness(), b.getFitness()));
-
-            Individual bestThisGen = population.get(0);
-            if (bestOverall == null || bestThisGen.getFitness() < bestOverall.getFitness()) {
-                bestOverall = bestThisGen.copy();
-            }
-
-            bestFitnessHistory[gen] = bestOverall.getFitness();
-
-            List<Individual> newPopulation = new ArrayList<>();
-            // Elitism: giữ lại 1 cá thể tốt nhất
-            newPopulation.add(bestOverall.copy());
-
-            while (newPopulation.size() < popSize) {
-                Individual parent1 = tournamentSelection(population);
-                Individual parent2 = tournamentSelection(population);
-
-                Individual child1 = parent1.copy();
-                Individual child2 = parent2.copy();
-
-                if (random.nextDouble() < config.getCrossoverRate()) {
-                    onePointCrossover(child1, child2);
-                }
-
-                mutate(child1, config.getMutationRate());
-                mutate(child2, config.getMutationRate());
-
-                newPopulation.add(child1);
-                if (newPopulation.size() < popSize) {
-                    newPopulation.add(child2);
-                }
-            }
-
-            population = newPopulation;
+        if (n <= 1 || m == 0) {
+            return new MSTResult(0, 0, 0, Collections.emptyList());
         }
 
-        // Đánh giá bestOverall cuối cùng
-        evaluateIndividual(bestOverall, graph);
+        int popSize = Math.max(10, config.getPopulationSize());
+        double pc = config.getCrossoverRate();
+        double pm = config.getMutationRate();
+        int maxGen = Math.max(1, config.getMaxGenerations());
 
-        List<Edge> mstEdges = decodeIndividual(bestOverall, graph);
-        double totalWeight = bestOverall.getFitness();
-        boolean valid = isSpanningTree(bestOverall.getGenes(), graph);
+        Random random = new Random();
 
-        return new MSTResult(mstEdges, totalWeight, valid, bestFitnessHistory);
-    }
-
-    // ================== Core GA helper methods ==================
-
-    private List<Individual> initializePopulation(int popSize, int numGenes) {
+        // 1. Khởi tạo quần thể
         List<Individual> population = new ArrayList<>();
         for (int i = 0; i < popSize; i++) {
-            boolean[] genes = new boolean[numGenes];
-            for (int j = 0; j < numGenes; j++) {
-                genes[j] = random.nextBoolean();
-            }
-            population.add(new Individual(genes));
+            boolean[] chromosome = createRandomTreeChromosome(graph, random);
+            Individual ind = new Individual(chromosome);
+            evaluateIndividual(ind, graph);
+            population.add(ind);
         }
-        return population;
+
+        Individual best = findBest(population);
+        int bestGen = 0;
+
+        // 2. Vòng lặp tiến hoá
+        for (int gen = 1; gen <= maxGen; gen++) {
+            List<Individual> newPop = new ArrayList<>();
+
+            // elitism: giữ lại 1 cá thể tốt nhất
+            newPop.add(best.copy());
+
+            while (newPop.size() < popSize) {
+                Individual parent1 = tournamentSelection(population, random, 3);
+                Individual parent2 = tournamentSelection(population, random, 3);
+
+                Individual[] children = crossover(parent1, parent2, pc, random);
+
+                for (Individual child : children) {
+                    mutate(child, pm, random);
+                    repairChromosome(child.getChromosome(), graph, random);
+                    evaluateIndividual(child, graph);
+                    newPop.add(child);
+                    if (newPop.size() >= popSize) break;
+                }
+            }
+
+            population = newPop;
+            Individual currentBest = findBest(population);
+            if (currentBest.getCost() < best.getCost()) {
+                best = currentBest.copy();
+                bestGen = gen;
+            }
+        }
+
+        // Lấy danh sách cạnh từ best
+        List<Edge> bestEdges = decodeEdges(best.getChromosome(), graph);
+        double totalWeight = best.getCost();
+        int edgeCount = bestEdges.size();
+
+        MSTResult result = new MSTResult(totalWeight, edgeCount, bestGen, bestEdges);
+        System.out.println("✅ GA finished: weight=" + totalWeight +
+                ", edges=" + edgeCount + ", bestGen=" + bestGen);
+        return result;
     }
 
-    private void evaluatePopulation(List<Individual> population, Graph graph) {
-        for (Individual ind : population) {
-            evaluateIndividual(ind, graph);
+    // ========== GA Helpers ==========
+
+    private boolean[] createRandomTreeChromosome(Graph graph, Random random) {
+        int n = graph.getVertexCount();
+        List<Edge> edges = graph.getEdges();
+        int m = edges.size();
+        boolean[] chromosome = new boolean[m];
+
+        // DSU
+        int[] parent = initParent(n);
+        int edgesUsed = 0;
+
+        List<Integer> indices = new ArrayList<>();
+        for (int i = 0; i < m; i++) indices.add(i);
+        Collections.shuffle(indices, random);
+
+        for (int idx : indices) {
+            if (edgesUsed == n - 1) break;
+            Edge e = edges.get(idx);
+            int ru = find(parent, e.getU());
+            int rv = find(parent, e.getV());
+            if (ru != rv) {
+                parent[ru] = rv;
+                chromosome[idx] = true;
+                edgesUsed++;
+            }
         }
+        return chromosome;
     }
 
     private void evaluateIndividual(Individual ind, Graph graph) {
-        boolean[] genes = ind.getGenes();
-        if (!isSpanningTree(genes, graph)) {
-            // Nếu không phải cây bao trùm: phạt nặng
-            ind.setFitness(1e9);
+        boolean[] chromosome = ind.getChromosome();
+        if (!isValidSpanningTree(chromosome, graph)) {
+            ind.setCost(BIG_PENALTY);
+            ind.setFitness(1.0 / (1.0 + BIG_PENALTY));
             return;
         }
+        double cost = computeCost(chromosome, graph);
+        ind.setCost(cost);
+        ind.setFitness(1.0 / (1.0 + cost));
+    }
 
-        double totalWeight = 0.0;
+    private double computeCost(boolean[] chromosome, Graph graph) {
+        double sum = 0.0;
         List<Edge> edges = graph.getEdges();
-        for (int i = 0; i < genes.length; i++) {
-            if (genes[i]) {
-                totalWeight += edges.get(i).getWeight();
+        for (int i = 0; i < chromosome.length; i++) {
+            if (chromosome[i]) {
+                sum += edges.get(i).getWeight();
             }
         }
-        ind.setFitness(totalWeight);
+        return sum;
     }
 
-    private Individual tournamentSelection(List<Individual> population) {
-        int tournamentSize = Math.min(3, population.size());
-        List<Individual> picked = new ArrayList<>();
-        for (int i = 0; i < tournamentSize; i++) {
-            int idx = random.nextInt(population.size());
-            picked.add(population.get(idx));
-        }
-        picked.sort((a, b) -> Double.compare(a.getFitness(), b.getFitness()));
-        return picked.get(0);
-    }
-
-    private void onePointCrossover(Individual a, Individual b) {
-        boolean[] ga = a.getGenes();
-        boolean[] gb = b.getGenes();
-
-        if (ga.length != gb.length || ga.length < 2) {
-            return;
-        }
-
-        int point = random.nextInt(ga.length - 1) + 1; // 1..len-1
-        for (int i = point; i < ga.length; i++) {
-            boolean tmp = ga[i];
-            ga[i] = gb[i];
-            gb[i] = tmp;
-        }
-    }
-
-    private void mutate(Individual ind, double mutationRate) {
-        boolean[] genes = ind.getGenes();
-        for (int i = 0; i < genes.length; i++) {
-            if (random.nextDouble() < mutationRate) {
-                genes[i] = !genes[i];
-            }
-        }
-    }
-
-    // ================== MST / feasibility helper ==================
-
-    private boolean isSpanningTree(boolean[] genes, Graph graph) {
-        int n = graph.getNumberOfVertices();
+    private boolean isValidSpanningTree(boolean[] chromosome, Graph graph) {
+        int n = graph.getVertexCount();
         List<Edge> edges = graph.getEdges();
+        int[] parent = initParent(n);
+        int used = 0;
 
-        // Đếm số cạnh được chọn
-        int countEdges = 0;
-        for (boolean gene : genes) {
-            if (gene) countEdges++;
-        }
-        // Cây bao trùm phải có n - 1 cạnh
-        if (countEdges != n - 1) return false;
-
-        // Dùng Union-Find kiểm tra có đúng 1 thành phần liên thông và không có chu trình
-        UnionFind uf = new UnionFind(n);
-        for (int i = 0; i < genes.length; i++) {
-            if (genes[i]) {
-                Edge e = edges.get(i);
-                if (!uf.union(e.getU(), e.getV())) {
-                    // Nếu union trả false => chu trình
-                    return false;
-                }
+        for (int i = 0; i < chromosome.length; i++) {
+            if (!chromosome[i]) continue;
+            Edge e = edges.get(i);
+            int ru = find(parent, e.getU());
+            int rv = find(parent, e.getV());
+            if (ru == rv) {
+                return false; // có chu trình
             }
+            parent[ru] = rv;
+            used++;
         }
 
-        // Kiểm tra tất cả đỉnh đều cùng 1 root
-        int root = uf.find(0);
-        for (int i = 1; i < n; i++) {
-            if (uf.find(i) != root) {
-                return false;
-            }
-        }
+        if (used != n - 1) return false;
 
+        int root = -1;
+        for (int i = 0; i < n; i++) {
+            int r = find(parent, i);
+            if (root == -1) root = r;
+            else if (r != root) return false; // không liên thông
+        }
         return true;
     }
 
-    private List<Edge> decodeIndividual(Individual ind, Graph graph) {
-        List<Edge> result = new ArrayList<>();
-        boolean[] genes = ind.getGenes();
+    private Individual tournamentSelection(List<Individual> pop, Random random, int k) {
+        Individual best = null;
+        for (int i = 0; i < k; i++) {
+            Individual cand = pop.get(random.nextInt(pop.size()));
+            if (best == null || cand.getCost() < best.getCost()) {
+                best = cand;
+            }
+        }
+        return best;
+    }
+
+    private Individual[] crossover(Individual p1, Individual p2,
+                                   double pc, Random random) {
+        boolean[] a = p1.getChromosome();
+        boolean[] b = p2.getChromosome();
+        int len = a.length;
+
+        if (random.nextDouble() >= pc) {
+            return new Individual[]{p1.copy(), p2.copy()};
+        }
+
+        int point = random.nextInt(len);
+        boolean[] c1 = new boolean[len];
+        boolean[] c2 = new boolean[len];
+
+        for (int i = 0; i < len; i++) {
+            if (i < point) {
+                c1[i] = a[i];
+                c2[i] = b[i];
+            } else {
+                c1[i] = b[i];
+                c2[i] = a[i];
+            }
+        }
+
+        return new Individual[]{new Individual(c1), new Individual(c2)};
+    }
+
+    private void mutate(Individual ind, double pm, Random random) {
+        boolean[] c = ind.getChromosome();
+        for (int i = 0; i < c.length; i++) {
+            if (random.nextDouble() < pm) {
+                c[i] = !c[i];
+            }
+        }
+    }
+
+    // "Sửa" chromosome -> luôn thành cây khung hợp lệ
+    private void repairChromosome(boolean[] chromosome, Graph graph, Random random) {
+        int n = graph.getVertexCount();
         List<Edge> edges = graph.getEdges();
-        for (int i = 0; i < genes.length; i++) {
-            if (genes[i]) {
+        int m = edges.size();
+
+        int[] parent = initParent(n);
+        int used = 0;
+
+        // 1. Giữ lại các cạnh đang bật nếu không tạo chu trình
+        for (int i = 0; i < m; i++) {
+            if (!chromosome[i]) continue;
+            Edge e = edges.get(i);
+            int ru = find(parent, e.getU());
+            int rv = find(parent, e.getV());
+            if (ru != rv) {
+                parent[ru] = rv;
+                used++;
+            } else {
+                chromosome[i] = false;
+            }
+        }
+
+        // 2. Thêm cạnh mới cho đủ n-1 cạnh và liên thông
+        List<Integer> idxs = new ArrayList<>();
+        for (int i = 0; i < m; i++) idxs.add(i);
+        Collections.shuffle(idxs, random);
+
+        for (int idx : idxs) {
+            if (used == n - 1) break;
+            if (chromosome[idx]) continue;
+            Edge e = edges.get(idx);
+            int ru = find(parent, e.getU());
+            int rv = find(parent, e.getV());
+            if (ru != rv) {
+                parent[ru] = rv;
+                chromosome[idx] = true;
+                used++;
+            }
+        }
+    }
+
+    private Individual findBest(List<Individual> population) {
+        Individual best = population.get(0);
+        for (Individual ind : population) {
+            if (ind.getCost() < best.getCost()) {
+                best = ind;
+            }
+        }
+        return best;
+    }
+
+    private List<Edge> decodeEdges(boolean[] chromosome, Graph graph) {
+        List<Edge> result = new ArrayList<>();
+        List<Edge> edges = graph.getEdges();
+        for (int i = 0; i < chromosome.length; i++) {
+            if (chromosome[i]) {
                 result.add(edges.get(i));
             }
         }
         return result;
     }
 
-    // ================== Union-Find (Disjoint Set) ==================
+    // DSU helpers
+    private int[] initParent(int n) {
+        int[] p = new int[n];
+        for (int i = 0; i < n; i++) p[i] = i;
+        return p;
+    }
 
-    private static class UnionFind {
-        private final int[] parent;
-        private final int[] rank;
-
-        public UnionFind(int n) {
-            parent = new int[n];
-            rank = new int[n];
-            for (int i = 0; i < n; i++) {
-                parent[i] = i;
-                rank[i] = 0;
-            }
+    private int find(int[] parent, int x) {
+        if (parent[x] != x) {
+            parent[x] = find(parent, parent[x]);
         }
-
-        public int find(int x) {
-            if (parent[x] != x) {
-                parent[x] = find(parent[x]);
-            }
-            return parent[x];
-        }
-
-        // return false nếu x,y đã cùng tập (tạo chu trình)
-        public boolean union(int x, int y) {
-            int rx = find(x);
-            int ry = find(y);
-            if (rx == ry) return false;
-
-            if (rank[rx] < rank[ry]) {
-                parent[rx] = ry;
-            } else if (rank[rx] > rank[ry]) {
-                parent[ry] = rx;
-            } else {
-                parent[ry] = rx;
-                rank[rx]++;
-            }
-            return true;
-        }
+        return parent[x];
     }
 }

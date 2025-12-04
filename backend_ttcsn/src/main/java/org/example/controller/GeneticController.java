@@ -11,21 +11,25 @@ public class GeneticController {
 
     public GeneticController(Javalin app, GeneticAlgorithmService service) {
 
-        System.out.println("✅ Registering route POST /api/run-ga"); // log cho chắc
+        System.out.println("✅ Registering route POST /api/run-ga");
 
         app.post("/api/run-ga", ctx -> {
-            // Nhận JSON từ FE
-            RunGaRequest request = ctx.bodyAsClass(RunGaRequest.class);
+            try {
+                System.out.println("👉 Received POST /api/run-ga");
 
-            // Chuyển sang Graph + Config
-            Graph graph = request.toGraph();
-            GeneticAlgorithmConfig config = request.toConfig();
+                RunGaRequest request = ctx.bodyAsClass(RunGaRequest.class);
+                System.out.println("📥 Request: " + request);
 
-            // Gọi service GA
-            MSTResult result = service.solveMST(graph, config);
+                Graph graph = request.toGraph();
+                GeneticAlgorithmConfig config = request.toConfig();
 
-            // Trả JSON về cho client
-            ctx.json(result);
+                MSTResult result = service.solveMST(graph, config);
+
+                ctx.json(result);
+            } catch (Exception e) {
+                e.printStackTrace();
+                ctx.status(500).result("Internal error: " + e.getMessage());
+            }
         });
     }
 }

@@ -4,23 +4,23 @@ import java.util.List;
 
 public class Graph {
 
-    private int numberOfVertices;
+    private int vertexCount;
     private List<Edge> edges;
 
     public Graph() {
     }
 
-    public Graph(int numberOfVertices, List<Edge> edges) {
-        this.numberOfVertices = numberOfVertices;
+    public Graph(int vertexCount, List<Edge> edges) {
+        this.vertexCount = vertexCount;
         this.edges = edges;
     }
 
-    public int getNumberOfVertices() {
-        return numberOfVertices;
+    public int getVertexCount() {
+        return vertexCount;
     }
 
-    public void setNumberOfVertices(int numberOfVertices) {
-        this.numberOfVertices = numberOfVertices;
+    public void setVertexCount(int vertexCount) {
+        this.vertexCount = vertexCount;
     }
 
     public List<Edge> getEdges() {
@@ -29,5 +29,13 @@ public class Graph {
 
     public void setEdges(List<Edge> edges) {
         this.edges = edges;
+    }
+
+    @Override
+    public String toString() {
+        return "Graph{" +
+                "vertexCount=" + vertexCount +
+                ", edges=" + edges +
+                '}';
     }
 }

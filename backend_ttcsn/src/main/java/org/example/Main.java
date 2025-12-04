@@ -6,27 +6,21 @@ import org.example.service.GeneticAlgorithmService;
 import org.example.service.GeneticAlgorithmServiceImpl;
 
 public class Main {
-
     public static void main(String[] args) {
 
-        // Khởi tạo service GA
-        GeneticAlgorithmService service = new GeneticAlgorithmServiceImpl();
-
-        // Tạo app Javalin
         Javalin app = Javalin.create(config -> {
-            config.http.defaultContentType = "application/json";
-            config.routing.ignoreTrailingSlashes = true;
+            // Cho phép FE gọi khác port (CORS)
+            config.plugins.enableCors(cors -> cors.add(it -> it.anyHost()));
         });
 
-        // Endpoint test
-        app.get("/api/health", ctx -> ctx.result("OK"));
+        // API test đơn giản
+        app.get("/ping", ctx -> ctx.result("pong"));
 
-        // Đăng ký controller GA
+        // Khởi tạo service & controller
+        GeneticAlgorithmService service = new GeneticAlgorithmServiceImpl();
         new GeneticController(app, service);
 
-        // Chạy server
-        app.start(7000);
-
-        System.out.println("🚀 Backend running at http://localhost:7000");
+        app.start(7000); // http://localhost:7000
+        System.out.println("🚀 Server started on http://localhost:7000");
     }
 }

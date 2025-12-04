@@ -1,85 +1,45 @@
 package org.example.model.dto;
 
-
-import org.example.model.Edge;
 import org.example.model.GeneticAlgorithmConfig;
 import org.example.model.Graph;
 
-import java.util.List;
-
 public class RunGaRequest {
 
-    private int numberOfVertices;
-    private List<Edge> edges;
-
-    private int populationSize;
-    private int generations;
-    private double mutationRate;
-    private double crossoverRate;
+    private GeneticAlgorithmConfig config;
+    private Graph graph;
 
     public RunGaRequest() {
     }
 
-    public int getNumberOfVertices() {
-        return numberOfVertices;
+    public GeneticAlgorithmConfig getConfig() {
+        return config;
     }
 
-    public void setNumberOfVertices(int numberOfVertices) {
-        this.numberOfVertices = numberOfVertices;
+    public void setConfig(GeneticAlgorithmConfig config) {
+        this.config = config;
     }
 
-    public List<Edge> getEdges() {
-        return edges;
+    public Graph getGraph() {
+        return graph;
     }
 
-    public void setEdges(List<Edge> edges) {
-        this.edges = edges;
+    public void setGraph(Graph graph) {
+        this.graph = graph;
     }
 
-    public int getPopulationSize() {
-        return populationSize;
-    }
-
-    public void setPopulationSize(int populationSize) {
-        this.populationSize = populationSize;
-    }
-
-    public int getGenerations() {
-        return generations;
-    }
-
-    public void setGenerations(int generations) {
-        this.generations = generations;
-    }
-
-    public double getMutationRate() {
-        return mutationRate;
-    }
-
-    public void setMutationRate(double mutationRate) {
-        this.mutationRate = mutationRate;
-    }
-
-    public double getCrossoverRate() {
-        return crossoverRate;
-    }
-
-    public void setCrossoverRate(double crossoverRate) {
-        this.crossoverRate = crossoverRate;
-    }
-
-    // Chuyển sang Graph để service xử lý
-    public Graph toGraph() {
-        return new Graph(numberOfVertices, edges);
-    }
-
-    // Chuyển sang Config để GA chạy
     public GeneticAlgorithmConfig toConfig() {
-        return new GeneticAlgorithmConfig(
-                populationSize,
-                generations,
-                mutationRate,
-                crossoverRate
-        );
+        return config;
+    }
+
+    public Graph toGraph() {
+        return graph;
+    }
+
+    @Override
+    public String toString() {
+        return "RunGaRequest{" +
+                "config=" + config +
+                ", graph=" + graph +
+                '}';
     }
 }

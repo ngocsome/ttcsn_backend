@@ -3,19 +3,19 @@ package org.example.model;
 public class GeneticAlgorithmConfig {
 
     private int populationSize;
-    private int generations;
-    private double mutationRate;
     private double crossoverRate;
+    private double mutationRate;
+    private int maxGenerations;
 
     public GeneticAlgorithmConfig() {
     }
 
-    public GeneticAlgorithmConfig(int populationSize, int generations,
-                                  double mutationRate, double crossoverRate) {
+    public GeneticAlgorithmConfig(int populationSize, double crossoverRate,
+                                  double mutationRate, int maxGenerations) {
         this.populationSize = populationSize;
-        this.generations = generations;
-        this.mutationRate = mutationRate;
         this.crossoverRate = crossoverRate;
+        this.mutationRate = mutationRate;
+        this.maxGenerations = maxGenerations;
     }
 
     public int getPopulationSize() {
@@ -26,12 +26,12 @@ public class GeneticAlgorithmConfig {
         this.populationSize = populationSize;
     }
 
-    public int getGenerations() {
-        return generations;
+    public double getCrossoverRate() {
+        return crossoverRate;
     }
 
-    public void setGenerations(int generations) {
-        this.generations = generations;
+    public void setCrossoverRate(double crossoverRate) {
+        this.crossoverRate = crossoverRate;
     }
 
     public double getMutationRate() {
@@ -42,11 +42,21 @@ public class GeneticAlgorithmConfig {
         this.mutationRate = mutationRate;
     }
 
-    public double getCrossoverRate() {
-        return crossoverRate;
+    public int getMaxGenerations() {
+        return maxGenerations;
     }
 
-    public void setCrossoverRate(double crossoverRate) {
-        this.crossoverRate = crossoverRate;
+    public void setMaxGenerations(int maxGenerations) {
+        this.maxGenerations = maxGenerations;
+    }
+
+    @Override
+    public String toString() {
+        return "GeneticAlgorithmConfig{" +
+                "populationSize=" + populationSize +
+                ", crossoverRate=" + crossoverRate +
+                ", mutationRate=" + mutationRate +
+                ", maxGenerations=" + maxGenerations +
+                '}';
     }
 }

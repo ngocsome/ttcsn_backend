@@ -4,28 +4,20 @@ import java.util.List;
 
 public class MSTResult {
 
-    private List<Edge> mstEdges;
     private double totalWeight;
-    private boolean valid;
-    private double[] bestFitnessPerGeneration;
+    private int edgeCount;
+    private int generations;
+    private List<Edge> edges;
 
     public MSTResult() {
     }
 
-    public MSTResult(List<Edge> mstEdges, double totalWeight,
-                     boolean valid, double[] bestFitnessPerGeneration) {
-        this.mstEdges = mstEdges;
+    public MSTResult(double totalWeight, int edgeCount,
+                     int generations, List<Edge> edges) {
         this.totalWeight = totalWeight;
-        this.valid = valid;
-        this.bestFitnessPerGeneration = bestFitnessPerGeneration;
-    }
-
-    public List<Edge> getMstEdges() {
-        return mstEdges;
-    }
-
-    public void setMstEdges(List<Edge> mstEdges) {
-        this.mstEdges = mstEdges;
+        this.edgeCount = edgeCount;
+        this.generations = generations;
+        this.edges = edges;
     }
 
     public double getTotalWeight() {
@@ -36,19 +28,27 @@ public class MSTResult {
         this.totalWeight = totalWeight;
     }
 
-    public boolean isValid() {
-        return valid;
+    public int getEdgeCount() {
+        return edgeCount;
     }
 
-    public void setValid(boolean valid) {
-        this.valid = valid;
+    public void setEdgeCount(int edgeCount) {
+        this.edgeCount = edgeCount;
     }
 
-    public double[] getBestFitnessPerGeneration() {
-        return bestFitnessPerGeneration;
+    public int getGenerations() {
+        return generations;
     }
 
-    public void setBestFitnessPerGeneration(double[] bestFitnessPerGeneration) {
-        this.bestFitnessPerGeneration = bestFitnessPerGeneration;
+    public void setGenerations(int generations) {
+        this.generations = generations;
+    }
+
+    public List<Edge> getEdges() {
+        return edges;
+    }
+
+    public void setEdges(List<Edge> edges) {
+        this.edges = edges;
     }
 }
