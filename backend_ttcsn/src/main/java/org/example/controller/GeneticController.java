@@ -7,23 +7,22 @@ import org.example.model.Graph;
 import org.example.model.MSTResult;
 import org.example.model.dto.RunGaRequest;
 import org.example.model.dto.RunGaResponse;
+import org.example.repository.GaRunHistoryStore;
 import org.example.service.GeneticAlgorithmService;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class GeneticController {
 
-    // Lưu lịch sử trong RAM
-    private final List<GaRunHistory> history = new ArrayList<>();
-    private final AtomicLong idGenerator = new AtomicLong(1);
+    // Lưu lịch sử bền vững vào file JSON (persist)
+    private final GaRunHistoryStore historyStore;
 
     public GeneticController(Javalin app, GeneticAlgorithmService service) {
 
         System.out.println("✅ Registering routes for GA_MST");
 
-        // 1) Chạy GA + lưu lịch sử
+        // File lưu lịch sử (bạn có thể đổi tên/path)
+        this.historyStore = new GaRunHistoryStore("storage/ga_run_history.json");
+
+        // 1) Chạy GA + lưu input/output
         app.post("/api/run-ga", ctx -> {
             try {
                 RunGaRequest request = ctx.bodyAsClass(RunGaRequest.class);
@@ -32,17 +31,14 @@ public class GeneticController {
                 Graph graph = request.toGraph();
                 GeneticAlgorithmConfig config = request.toConfig();
 
-                // gọi service giải MST
+                // chạy GA-MST
                 MSTResult result = service.solveMST(graph, config);
 
-                // lưu lịch sử
-                long id = idGenerator.getAndIncrement();
-                String now = java.time.LocalDateTime.now().toString();
-                GaRunHistory run = new GaRunHistory(id, now, config, graph, result);
-                history.add(run);
+                // ✅ lưu input (graph+config) + output (result) xuống file
+                GaRunHistory run = historyStore.add(config, graph, result);
 
-                // trả về cho FE runId + result
-                RunGaResponse response = new RunGaResponse(id, result);
+                // trả về runId + result cho FE
+                RunGaResponse response = new RunGaResponse(run.getId(), result);
                 ctx.json(response);
 
             } catch (Exception e) {
@@ -51,19 +47,16 @@ public class GeneticController {
             }
         });
 
-        // 2) Lấy danh sách lịch sử
+        // 2) Lấy danh sách lịch sử (đã lưu bền vững)
         app.get("/api/run-ga/history", ctx -> {
-            ctx.json(history);
+            ctx.json(historyStore.getAll());
         });
 
         // 3) Lấy chi tiết 1 lần chạy theo id
         app.get("/api/run-ga/history/{id}", ctx -> {
             try {
                 long id = Long.parseLong(ctx.pathParam("id"));
-                GaRunHistory found = history.stream()
-                        .filter(h -> h.getId() == id)
-                        .findFirst()
-                        .orElse(null);
+                GaRunHistory found = historyStore.getById(id);
 
                 if (found == null) {
                     ctx.status(404).result("Run not found");

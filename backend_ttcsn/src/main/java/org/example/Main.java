@@ -21,6 +21,6 @@ public class Main {
         new GeneticController(app, service);
 
         app.start(7000); // http://localhost:7000
-        System.out.println("🚀 Server started on http://localhost:7000");
+        System.out.println("Server started on http://localhost:7000");
     }
 }
